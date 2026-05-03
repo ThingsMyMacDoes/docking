@@ -41,8 +41,7 @@ canvas{
 <div class="hud">
 ↑ / ↓ throttle<br>
 ← / → rudder<br>
-Start: line fully taut at 90° to dock<br>
-No rudder = bow turns toward dock
+Line pulls stern to dock — use rudder to stay parallel
 </div>
 
 <script>
@@ -55,68 +54,47 @@ function resize(){
 addEventListener("resize", resize);
 resize();
 
-// =====================================
-const dockX = innerWidth * 0.48;
+// ─── constants ───────────────────────────────────────────
+const dockX     = innerWidth * 0.75;
 const dockWidth = 28;
 
 const boatLength = 92;
 const boatBeam   = 28;
 
-const lineLength = 220;
-const lineStiffness = 0.035;
-
-// CHANGE MAX SPEED HERE
-const MAX_SPEED = 1.35;
-
+const lineLength   = 220;
+const MAX_SPEED    = 1.35;
 const THRUST_POWER = 0.032;
 const RUDDER_POWER = 0.0026;
-// =====================================
 
-/*
-Boat points LEFT initially.
-Starboard aft quarter = lower side on screen (positive Y).
-*/
-const attachLocal = {
-  x: -28,
-  y: 11
-};
+// ─── cleat in boat-local space ────────────────────────────
+// boat angle = -PI/2 means bow points UP (negative screen Y)
+// local +X = starboard (rightward when bow is up)
+// local +Y = toward stern (downward when bow is up)
+// aft-starboard cleat:
+const attachLocal = { x: 11, y: 28 };
 
-const startAngle = Math.PI;
-
-/*
-At angle PI:
-  cos(PI) = -1, sin(PI) = 0
-  rp.x = (-28)*(-1) - (11)*(0) =  28
-  rp.y = (-28)*(0)  + (11)*(-1) = -11
-
-We want attachWorld.y = c.height/2
-  => boat.y + rp.y = c.height/2
-  => boat.y = c.height/2 - rp.y = c.height/2 + 11
-
-We want attachWorld.x = dockX - lineLength (line goes left from dock)
-  => boat.x + rp.x = dockX - lineLength
-  => boat.x = dockX - lineLength - 28
-  Wait: attachment is to the LEFT of the dock, so:
-  attachWorld.x = dockX - lineLength
-  boat.x + 28 = dockX - lineLength
-  boat.x = dockX - lineLength - 28
-
-  But boat faces left, bow is at boat.x + boatLength/2 to the LEFT.
-  We need the boat to be to the left of the dock.
-  dockX - lineLength - 28 places the boat center well left of dock. Good.
-*/
+// ─── starting position ────────────────────────────────────
+// angle = -PI/2  =>  cos=0, sin=-1
+// rp.x = 11*0  - 28*(-1) =  28
+// rp.y = 11*(-1) + 28*0  = -11
+//
+// dock cleat is at (dockX, c.height/2)
+// want line horizontal => attachWorld.y = c.height/2
+//   boat.y + (-11) = c.height/2  =>  boat.y = c.height/2 + 11
+// want line taut => attachWorld.x = dockX - lineLength
+//   boat.x + 28 = dockX - lineLength  =>  boat.x = dockX - lineLength - 28
 
 const boat = {
-  x: dockX - lineLength - 28,
-  y: c.height / 2 + 11,
-  angle: startAngle,
-  vx: 0,
-  vy: 0,
-  av: 0
+  x    : dockX - lineLength - 28,
+  y    : c.height / 2 + 11,
+  angle: -Math.PI / 2,
+  vx   : 0,
+  vy   : 0,
+  av   : 0,
 };
 
-let throttle = 0;
-let rudder = 0;
+let throttle = 0.18;
+let rudder   = 0;
 
 function rotate(x, y, a){
   return {
@@ -129,15 +107,15 @@ function clamp(v, min, max){
   return Math.max(min, Math.min(max, v));
 }
 
+// ─── physics ─────────────────────────────────────────────
 function update(){
 
-  const thrust = throttle * THRUST_POWER;
+  // thrust along heading
+  boat.vx += Math.cos(boat.angle) * throttle * THRUST_POWER;
+  boat.vy += Math.sin(boat.angle) * throttle * THRUST_POWER;
 
-  boat.vx += Math.cos(boat.angle) * thrust;
-  boat.vy += Math.sin(boat.angle) * thrust;
-
+  // speed cap
   let speed = Math.hypot(boat.vx, boat.vy);
-
   if(speed > MAX_SPEED){
     const s = MAX_SPEED / speed;
     boat.vx *= s;
@@ -148,128 +126,136 @@ function update(){
   // rudder
   boat.av += rudder * speed * RUDDER_POWER;
 
-  const rp = rotate(attachLocal.x, attachLocal.y, boat.angle);
-
-  const ax = boat.x + rp.x;
-  const ay = boat.y + rp.y;
-
-  const cy = c.height / 2;
-
-  const dx = dockX - ax;
-  const dy = cy - ay;
-
-  const dist = Math.hypot(dx, dy);
-
-  // FIX: use strict > so the line at exactly rest length produces zero force
-  if(dist > lineLength){
-
-    const stretch = dist - lineLength;
-
-    const fx = dx / dist * stretch * lineStiffness;
-    const fy = dy / dist * stretch * lineStiffness;
-
-    boat.vx += fx;
-    boat.vy += fy;
-
-    /*
-    Positive torque = clockwise on screen
-    which turns bow DOWN toward dock.
-    */
-    let torque = -(rp.x * fy - rp.y * fx);
-
-    // line can only pull, never push the bow away
-    if(torque < 0) torque = 0;
-
-    boat.av += torque * 0.003;
-  }
-
+  // drag
   boat.vx *= 0.992;
   boat.vy *= 0.992;
   boat.av *= 0.958;
+  boat.av  = clamp(boat.av, -0.05, 0.05);
 
-  boat.x += boat.vx;
-  boat.y += boat.vy;
+  // integrate
+  boat.x     += boat.vx;
+  boat.y     += boat.vy;
   boat.angle += boat.av;
 
-  // keep boat left of dock
-  const maxX = dockX - 18;
+  // ── line: hard positional constraint, no elasticity ──
+  const rp   = rotate(attachLocal.x, attachLocal.y, boat.angle);
+  const ax   = boat.x + rp.x;
+  const ay   = boat.y + rp.y;
+  const cy   = c.height / 2;
+
+  // vector from dock cleat to boat cleat
+  const dx   = ax - dockX;
+  const dy   = ay - cy;
+  const dist = Math.hypot(dx, dy);
+
+  if(dist > lineLength){
+    const over = dist - lineLength;
+    const nx   = dx / dist;
+    const ny   = dy / dist;
+
+    // push boat back so cleat sits at exactly lineLength from dock
+    boat.x -= nx * over;
+    boat.y -= ny * over;
+
+    // cancel velocity component pulling away from dock
+    const vn = boat.vx * nx + boat.vy * ny;
+    if(vn > 0){
+      boat.vx -= vn * nx;
+      boat.vy -= vn * ny;
+    }
+
+    // torque: constraint acts at cleat offset from CoM
+    // cross product rp x F gives rotation
+    // F opposes the outward pull => F = (-nx, -ny) scaled by vn
+    if(vn > 0){
+      const torque = rp.x * (-ny * vn) - rp.y * (-nx * vn);
+      boat.av += torque * 0.0015;
+      boat.av  = clamp(boat.av, -0.05, 0.05);
+    }
+  }
+
+  // keep boat left of dock face
+  const maxX = dockX - boatBeam;
   if(boat.x > maxX){
     boat.x = maxX;
     if(boat.vx > 0) boat.vx = 0;
   }
-
-  boat.av = clamp(boat.av, -0.05, 0.05);
 }
 
+// ─── draw ────────────────────────────────────────────────
 function drawBoat(){
-
   ctx.save();
   ctx.translate(boat.x, boat.y);
   ctx.rotate(boat.angle);
 
-  ctx.fillStyle = "#1f4f8a";
+  // hull — bow is local -Y (top when angle = -PI/2)
+  ctx.fillStyle   = "#1f4f8a";
   ctx.strokeStyle = "#102842";
-  ctx.lineWidth = 2;
+  ctx.lineWidth   = 2;
+
+  const hl = boatLength / 2;
+  const hb = boatBeam   / 2;
 
   ctx.beginPath();
-  ctx.moveTo( boatLength / 2, 0);
-  ctx.lineTo( boatLength / 4, -boatBeam / 2);
-  ctx.lineTo(-boatLength / 2, -boatBeam / 2);
-  ctx.lineTo(-boatLength / 2,  boatBeam / 2);
-  ctx.lineTo( boatLength / 4,  boatBeam / 2);
+  ctx.moveTo( 0,  -hl);       // bow tip
+  ctx.lineTo( hb, -hl * 0.4);
+  ctx.lineTo( hb,  hl);       // stern starboard
+  ctx.lineTo(-hb,  hl);       // stern port
+  ctx.lineTo(-hb, -hl * 0.4);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
   // centerline
+  ctx.strokeStyle = "rgba(255,255,255,.25)";
+  ctx.lineWidth   = 1;
   ctx.beginPath();
-  ctx.moveTo(-24, 0);
-  ctx.lineTo(34, 0);
+  ctx.moveTo(0, -hl + 6);
+  ctx.lineTo(0,  hl - 6);
   ctx.stroke();
 
-  // cleat dot
+  // cleat
   ctx.fillStyle = "#ffd54a";
   ctx.beginPath();
-  ctx.arc(attachLocal.x, attachLocal.y, 3, 0, Math.PI * 2);
+  ctx.arc(attachLocal.x, attachLocal.y, 4, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.restore();
 }
 
 function draw(){
-
   ctx.clearRect(0, 0, c.width, c.height);
 
-  // water grid lines
-  ctx.strokeStyle = "rgba(255,255,255,.08)";
+  // water grid
+  ctx.strokeStyle = "rgba(255,255,255,.07)";
+  ctx.lineWidth   = 1;
   for(let y = 0; y < c.height; y += 50){
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(c.width, y);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(c.width, y); ctx.stroke();
   }
 
   // dock
   ctx.fillStyle = "#666";
   ctx.fillRect(dockX, 0, dockWidth, c.height);
-
-  // dock edge shadow
-  ctx.fillStyle = "rgba(255,255,255,.12)";
+  ctx.fillStyle = "rgba(255,255,255,.10)";
   ctx.fillRect(dockX - 8, 0, 8, c.height);
 
   const cy = c.height / 2;
 
   // spring line
-  const rp = rotate(attachLocal.x, attachLocal.y, boat.angle);
-  const ax = boat.x + rp.x;
-  const ay = boat.y + rp.y;
+  const rp   = rotate(attachLocal.x, attachLocal.y, boat.angle);
+  const ax   = boat.x + rp.x;
+  const ay   = boat.y + rp.y;
+  const dist = Math.hypot(ax - dockX, ay - cy);
+  const taut = dist >= lineLength - 1;
 
-  ctx.strokeStyle = "#f5f1c2";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = taut ? "#f5f1c2" : "rgba(245,241,194,0.35)";
+  ctx.lineWidth   = taut ? 3 : 1.5;
+  ctx.setLineDash(taut ? [] : [6, 4]);
   ctx.beginPath();
   ctx.moveTo(dockX, cy);
   ctx.lineTo(ax, ay);
   ctx.stroke();
+  ctx.setLineDash([]);
 
   // dock cleat
   ctx.fillStyle = "#222";
@@ -287,10 +273,11 @@ function loop(){
 }
 
 addEventListener("keydown", e => {
-  if(e.key === "ArrowUp")    throttle = clamp(throttle + 0.04, -0.4, 0.7);
-  if(e.key === "ArrowDown")  throttle = clamp(throttle - 0.04, -0.4, 0.7);
+  if(e.key === "ArrowUp")    throttle = clamp(throttle + 0.04, -0.4, 0.8);
+  if(e.key === "ArrowDown")  throttle = clamp(throttle - 0.04, -0.4, 0.8);
   if(e.key === "ArrowLeft")  rudder = -1;
   if(e.key === "ArrowRight") rudder =  1;
+  e.preventDefault();
 });
 
 addEventListener("keyup", e => {
@@ -307,8 +294,13 @@ loop();
 
 
 
+   
+
+
+
  
-  
+ 
+
 
 
 
