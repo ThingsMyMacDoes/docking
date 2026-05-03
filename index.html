@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -41,7 +42,8 @@ canvas{
 <div class="hud">
 ↑ / ↓ throttle<br>
 ← / → rudder<br>
-No rudder = bow only turns toward dock
+Start: line fully taut at 90° to dock<br>
+No rudder = bow turns toward dock
 </div>
 
 <script>
@@ -54,8 +56,6 @@ function resize(){
 addEventListener("resize", resize);
 
 // =====================================
-// SETTINGS
-// =====================================
 const dockX = innerWidth * 0.48;
 const dockWidth = 28;
 
@@ -63,39 +63,50 @@ const boatLength = 92;
 const boatBeam   = 28;
 
 const lineLength = 220;
-const lineStiffness = 0.032;
+const lineStiffness = 0.035;
 
 // CHANGE MAX SPEED HERE
 const MAX_SPEED = 1.35;
 
 const THRUST_POWER = 0.032;
 const RUDDER_POWER = 0.0026;
-
 // =====================================
 
 /*
-Boat points LEFT.
+Boat points LEFT initially.
 
-Start with line fully extended and perpendicular
-to dock (90° from dock face).
-Dock is vertical, so line is horizontal.
+Starboard aft quarter = lower side on screen.
 */
-
 const attachLocal = {
   x:-28,
   y:11
 };
 
-const startY = innerHeight / 2;
 const startAngle = Math.PI;
+const startY = innerHeight / 2;
 
-// place boat so attachment point is exactly lineLength from dock
-const startX = dockX + lineLength + 28;
+/*
+Need attachment point exactly lineLength from dock.
+At angle PI:
+rotated attach point = (+28 , -11)
+
+So:
+attachmentX = boat.x + 28
+attachmentY = boat.y - 11
+
+Set attachmentY = cleatY
+=> boat.y = cleatY + 11
+
+Set horizontal distance = lineLength
+=> attachmentX = dockX + lineLength
+=> boat.x = dockX + lineLength - 28
+*/
+const cleatY = startY;
 
 const boat = {
-  x:startX,
-  y:startY,
-  angle:startAngle,
+  x: dockX + lineLength - 28,
+  y: cleatY + 11,
+  angle: startAngle,
   vx:0,
   vy:0,
   av:0
@@ -131,7 +142,7 @@ function update(){
     speed = MAX_SPEED;
   }
 
-  // rudder only source of left turn
+  // rudder
   boat.av += rudder * speed * RUDDER_POWER;
 
   const rp = rotate(attachLocal.x, attachLocal.y, boat.angle);
@@ -139,30 +150,33 @@ function update(){
   const ax = boat.x + rp.x;
   const ay = boat.y + rp.y;
 
-  const cleatY = c.height / 2;
+  const cy = c.height/2;
 
   const dx = dockX - ax;
-  const dy = cleatY - ay;
+  const dy = cy - ay;
 
   const dist = Math.hypot(dx,dy);
 
-  if(dist > lineLength){
+  if(dist >= lineLength){
 
     const stretch = dist - lineLength;
 
-    const fx = dx/dist * stretch * lineStiffness;
-    const fy = dy/dist * stretch * lineStiffness;
+    const fx = dx/dist * (stretch + 0.25) * lineStiffness;
+    const fy = dy/dist * (stretch + 0.25) * lineStiffness;
 
     boat.vx += fx;
     boat.vy += fy;
 
-    // only torque that turns bow toward dock
+    /*
+    Positive torque = clockwise on screen
+    which turns bow DOWN toward dock.
+    */
     let torque = -(rp.x * fy - rp.y * fx);
 
-    // never allow line torque to turn left
+    // ensure line only turns toward dock
     if(torque < 0) torque = 0;
 
-    boat.av += torque * 0.00072;
+    boat.av += torque * 0.00095;
   }
 
   boat.vx *= 0.992;
@@ -173,7 +187,7 @@ function update(){
   boat.y += boat.vy;
   boat.angle += boat.av;
 
-  // keep left of dock
+  // keep boat left of dock
   const maxX = dockX - 18;
   if(boat.x > maxX){
     boat.x = maxX;
@@ -234,7 +248,7 @@ function draw(){
   ctx.fillStyle="rgba(255,255,255,.12)";
   ctx.fillRect(dockX-8,0,8,c.height);
 
-  const cleatY = c.height/2;
+  const cy = c.height/2;
 
   const rp = rotate(attachLocal.x, attachLocal.y, boat.angle);
   const ax = boat.x + rp.x;
@@ -243,13 +257,13 @@ function draw(){
   ctx.strokeStyle="#f5f1c2";
   ctx.lineWidth=3;
   ctx.beginPath();
-  ctx.moveTo(dockX,cleatY);
+  ctx.moveTo(dockX,cy);
   ctx.lineTo(ax,ay);
   ctx.stroke();
 
   ctx.fillStyle="#222";
   ctx.beginPath();
-  ctx.arc(dockX,cleatY,5,0,Math.PI*2);
+  ctx.arc(dockX,cy,5,0,Math.PI*2);
   ctx.fill();
 
   drawBoat();
@@ -277,12 +291,12 @@ loop();
 </script>
 
 </body>
-</html>
+</html> 
 
+ 
+ 
+  
 
-
-
-   
 
  
 
