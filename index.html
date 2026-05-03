@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -41,7 +42,7 @@ canvas{
 <div class="hud">
 ↑ / ↓ throttle<br>
 ← / → rudder<br>
-Spring line fixed STARBOARD aft quarter
+No rudder = bow slowly turns toward dock
 </div>
 
 <script>
@@ -86,17 +87,14 @@ let throttle = 0.18;
 let rudder = 0;
 
 /*
-Boat points LEFT initially.
+Boat points LEFT.
 
-When viewed on screen:
-- top side of hull = PORT
-- bottom side of hull = STARBOARD
-
-Therefore starboard aft quarter = positive Y
+Starboard aft quarter shown lower side of hull.
+Line location visually correct.
 */
 const attachLocal = {
-  x:-28,   // aft
-  y: 11    // STARBOARD side
+  x:-28,
+  y:11
 };
 
 function rotate(x,y,a){
@@ -126,6 +124,7 @@ function update(){
     speed = MAX_SPEED;
   }
 
+  // rudder
   boat.av += rudder * speed * RUDDER_POWER;
 
   const rp = rotate(attachLocal.x, attachLocal.y, boat.angle);
@@ -150,7 +149,12 @@ function update(){
     boat.vx += fx;
     boat.vy += fy;
 
-    const torque = rp.x * fy - rp.y * fx;
+    /*
+    Inverted previous yaw direction.
+    Now line offset causes bow to turn TOWARD dock.
+    */
+    const torque = -(rp.x * fy - rp.y * fx);
+
     boat.av += torque * 0.00072;
   }
 
@@ -197,7 +201,6 @@ function drawBoat(){
   ctx.lineTo(34,0);
   ctx.stroke();
 
-  // spring cleat marker
   ctx.fillStyle="#ffd54a";
   ctx.beginPath();
   ctx.arc(attachLocal.x, attachLocal.y, 3, 0, Math.PI*2);
@@ -210,7 +213,6 @@ function draw(){
 
   ctx.clearRect(0,0,c.width,c.height);
 
-  // water lines
   ctx.strokeStyle="rgba(255,255,255,.08)";
   for(let y=0;y<c.height;y+=50){
     ctx.beginPath();
@@ -219,7 +221,6 @@ function draw(){
     ctx.stroke();
   }
 
-  // dock
   ctx.fillStyle="#666";
   ctx.fillRect(dockX,0,dockWidth,c.height);
 
@@ -228,7 +229,6 @@ function draw(){
 
   const cleatY = c.height/2;
 
-  // spring line
   const rp = rotate(attachLocal.x, attachLocal.y, boat.angle);
   const ax = boat.x + rp.x;
   const ay = boat.y + rp.y;
@@ -240,7 +240,6 @@ function draw(){
   ctx.lineTo(ax,ay);
   ctx.stroke();
 
-  // dock cleat
   ctx.fillStyle="#222";
   ctx.beginPath();
   ctx.arc(dockX,cleatY,5,0,Math.PI*2);
@@ -271,13 +270,14 @@ loop();
 </script>
 
 </body>
-</html> 
+</html>
 
 
-  
-  
+ 
 
-  
+
+
+
 
 
   
