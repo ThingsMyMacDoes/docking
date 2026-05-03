@@ -41,8 +41,7 @@ canvas{
 <div class="hud">
 ↑ / ↓ throttle<br>
 ← / → rudder<br>
-Spring line fixed starboard aft quarter<br>
-Use rudder to hold bow off dock
+Spring line fixed STARBOARD aft quarter
 </div>
 
 <script>
@@ -57,10 +56,7 @@ addEventListener("resize", resize);
 // =====================================
 // SETTINGS
 // =====================================
-
-// moved right so simulation is centered
 const dockX = innerWidth * 0.48;
-
 const dockWidth = 28;
 
 const boatLength = 92;
@@ -90,18 +86,17 @@ let throttle = 0.18;
 let rudder = 0;
 
 /*
-Boat initially points LEFT.
+Boat points LEFT initially.
 
-For a boat pointing left:
-- screen TOP side = STARBOARD side
-- screen BOTTOM side = PORT side
+When viewed on screen:
+- top side of hull = PORT
+- bottom side of hull = STARBOARD
 
-So to attach line on RIGHT side of boat (starboard),
-use NEGATIVE local y.
+Therefore starboard aft quarter = positive Y
 */
 const attachLocal = {
-  x:-28,   // aft quarter
-  y:-11    // starboard / right side of vessel
+  x:-28,   // aft
+  y: 11    // STARBOARD side
 };
 
 function rotate(x,y,a){
@@ -167,6 +162,7 @@ function update(){
   boat.y += boat.vy;
   boat.angle += boat.av;
 
+  // keep left of dock
   const maxX = dockX - 18;
   if(boat.x > maxX){
     boat.x = maxX;
@@ -201,7 +197,7 @@ function drawBoat(){
   ctx.lineTo(34,0);
   ctx.stroke();
 
-  // line attachment marker
+  // spring cleat marker
   ctx.fillStyle="#ffd54a";
   ctx.beginPath();
   ctx.arc(attachLocal.x, attachLocal.y, 3, 0, Math.PI*2);
@@ -232,7 +228,7 @@ function draw(){
 
   const cleatY = c.height/2;
 
-  // line
+  // spring line
   const rp = rotate(attachLocal.x, attachLocal.y, boat.angle);
   const ax = boat.x + rp.x;
   const ay = boat.y + rp.y;
@@ -244,7 +240,7 @@ function draw(){
   ctx.lineTo(ax,ay);
   ctx.stroke();
 
-  // cleat
+  // dock cleat
   ctx.fillStyle="#222";
   ctx.beginPath();
   ctx.arc(dockX,cleatY,5,0,Math.PI*2);
@@ -275,8 +271,11 @@ loop();
 </script>
 
 </body>
-</html>
- 
+</html> 
+
+
+  
+  
 
   
 
