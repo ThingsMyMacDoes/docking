@@ -1,5 +1,4 @@
-
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -43,7 +42,7 @@ canvas{
 ↑ / ↓ throttle<br>
 ← / → rudder<br>
 Spring line fixed starboard aft quarter<br>
-Use rudder to stop bow swinging into dock
+Use rudder to hold bow off dock
 </div>
 
 <script>
@@ -55,34 +54,33 @@ function resize(){
 }
 addEventListener("resize", resize);
 
-// ==========================================
+// =====================================
 // SETTINGS
-// ==========================================
-const dockX = 260;
+// =====================================
+
+// moved right so simulation is centered
+const dockX = innerWidth * 0.48;
+
 const dockWidth = 28;
 
 const boatLength = 92;
 const boatBeam   = 28;
 
-// line settings
 const lineLength = 220;
 const lineStiffness = 0.032;
 
-// >>> MAX SPEED HERE <<<
+// CHANGE MAX SPEED HERE
 const MAX_SPEED = 1.35;
 
-// slower engine
 const THRUST_POWER = 0.032;
-
-// rudder strength
 const RUDDER_POWER = 0.0026;
 
-// ==========================================
+// =====================================
 
 const boat = {
-  x:520,
-  y:innerHeight/2,
-  angle:Math.PI,
+  x: innerWidth * 0.70,
+  y: innerHeight / 2,
+  angle: Math.PI,
   vx:0,
   vy:0,
   av:0
@@ -92,21 +90,18 @@ let throttle = 0.18;
 let rudder = 0;
 
 /*
-IMPORTANT:
-Positive Y in canvas = downward.
-Boat facing left initially.
+Boat initially points LEFT.
 
-Starboard side = upper side of hull on screen
-when facing left, so negative local y.
+For a boat pointing left:
+- screen TOP side = STARBOARD side
+- screen BOTTOM side = PORT side
 
-Attachment point:
-aft quarter + starboard side
-This creates correct tendency:
-line tension rotates bow toward dock.
+So to attach line on RIGHT side of boat (starboard),
+use NEGATIVE local y.
 */
 const attachLocal = {
-  x:-28,   // aft
-  y:-11    // starboard side
+  x:-28,   // aft quarter
+  y:-11    // starboard / right side of vessel
 };
 
 function rotate(x,y,a){
@@ -122,14 +117,13 @@ function clamp(v,min,max){
 
 function update(){
 
-  // engine thrust
   const thrust = throttle * THRUST_POWER;
 
   boat.vx += Math.cos(boat.angle) * thrust;
   boat.vy += Math.sin(boat.angle) * thrust;
 
-  // speed limit
   let speed = Math.hypot(boat.vx, boat.vy);
+
   if(speed > MAX_SPEED){
     const s = MAX_SPEED / speed;
     boat.vx *= s;
@@ -137,15 +131,14 @@ function update(){
     speed = MAX_SPEED;
   }
 
-  // rudder effect
   boat.av += rudder * speed * RUDDER_POWER;
 
-  // line attachment world point
   const rp = rotate(attachLocal.x, attachLocal.y, boat.angle);
+
   const ax = boat.x + rp.x;
   const ay = boat.y + rp.y;
 
-  const cleatY = c.height/2;
+  const cleatY = c.height / 2;
 
   const dx = dockX - ax;
   const dy = cleatY - ay;
@@ -159,39 +152,27 @@ function update(){
     const fx = dx/dist * stretch * lineStiffness;
     const fy = dy/dist * stretch * lineStiffness;
 
-    // pull boat
     boat.vx += fx;
     boat.vy += fy;
 
-    /*
-      Torque = r x F
-
-      With attachment on starboard quarter,
-      tension now naturally yaws bow INTO dock.
-    */
     const torque = rp.x * fy - rp.y * fx;
-
     boat.av += torque * 0.00072;
   }
 
-  // damping
   boat.vx *= 0.992;
   boat.vy *= 0.992;
   boat.av *= 0.958;
 
-  // move
   boat.x += boat.vx;
   boat.y += boat.vy;
   boat.angle += boat.av;
 
-  // keep boat left of dock
   const maxX = dockX - 18;
   if(boat.x > maxX){
     boat.x = maxX;
     if(boat.vx > 0) boat.vx = 0;
   }
 
-  // prevent insane spin
   boat.av = clamp(boat.av,-0.05,0.05);
 }
 
@@ -205,7 +186,6 @@ function drawBoat(){
   ctx.strokeStyle="#102842";
   ctx.lineWidth=2;
 
-  // hull
   ctx.beginPath();
   ctx.moveTo( boatLength/2,0);
   ctx.lineTo( boatLength/4,-boatBeam/2);
@@ -216,13 +196,12 @@ function drawBoat(){
   ctx.fill();
   ctx.stroke();
 
-  // centerline
   ctx.beginPath();
   ctx.moveTo(-24,0);
   ctx.lineTo(34,0);
   ctx.stroke();
 
-  // mark spring cleat
+  // line attachment marker
   ctx.fillStyle="#ffd54a";
   ctx.beginPath();
   ctx.arc(attachLocal.x, attachLocal.y, 3, 0, Math.PI*2);
@@ -235,7 +214,7 @@ function draw(){
 
   ctx.clearRect(0,0,c.width,c.height);
 
-  // water grid
+  // water lines
   ctx.strokeStyle="rgba(255,255,255,.08)";
   for(let y=0;y<c.height;y+=50){
     ctx.beginPath();
@@ -253,7 +232,7 @@ function draw(){
 
   const cleatY = c.height/2;
 
-  // spring line
+  // line
   const rp = rotate(attachLocal.x, attachLocal.y, boat.angle);
   const ax = boat.x + rp.x;
   const ay = boat.y + rp.y;
@@ -265,7 +244,7 @@ function draw(){
   ctx.lineTo(ax,ay);
   ctx.stroke();
 
-  // dock cleat
+  // cleat
   ctx.fillStyle="#222";
   ctx.beginPath();
   ctx.arc(dockX,cleatY,5,0,Math.PI*2);
@@ -280,7 +259,6 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-// controls
 addEventListener("keydown",e=>{
   if(e.key==="ArrowUp") throttle = clamp(throttle+0.04,-0.4,0.7);
   if(e.key==="ArrowDown") throttle = clamp(throttle-0.04,-0.4,0.7);
@@ -298,6 +276,9 @@ loop();
 
 </body>
 </html>
+ 
+
+  
 
 
   
