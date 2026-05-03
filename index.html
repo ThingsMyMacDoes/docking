@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,7 +41,7 @@ canvas{
 <div class="hud">
 ↑ / ↓ throttle<br>
 ← / → rudder<br>
-No rudder = bow slowly turns toward dock
+No rudder = bow only turns toward dock
 </div>
 
 <script>
@@ -74,10 +73,29 @@ const RUDDER_POWER = 0.0026;
 
 // =====================================
 
+/*
+Boat points LEFT.
+
+Start with line fully extended and perpendicular
+to dock (90° from dock face).
+Dock is vertical, so line is horizontal.
+*/
+
+const attachLocal = {
+  x:-28,
+  y:11
+};
+
+const startY = innerHeight / 2;
+const startAngle = Math.PI;
+
+// place boat so attachment point is exactly lineLength from dock
+const startX = dockX + lineLength + 28;
+
 const boat = {
-  x: innerWidth * 0.70,
-  y: innerHeight / 2,
-  angle: Math.PI,
+  x:startX,
+  y:startY,
+  angle:startAngle,
   vx:0,
   vy:0,
   av:0
@@ -85,17 +103,6 @@ const boat = {
 
 let throttle = 0.18;
 let rudder = 0;
-
-/*
-Boat points LEFT.
-
-Starboard aft quarter shown lower side of hull.
-Line location visually correct.
-*/
-const attachLocal = {
-  x:-28,
-  y:11
-};
 
 function rotate(x,y,a){
   return {
@@ -124,7 +131,7 @@ function update(){
     speed = MAX_SPEED;
   }
 
-  // rudder
+  // rudder only source of left turn
   boat.av += rudder * speed * RUDDER_POWER;
 
   const rp = rotate(attachLocal.x, attachLocal.y, boat.angle);
@@ -149,13 +156,13 @@ function update(){
     boat.vx += fx;
     boat.vy += fy;
 
-    /*
-    Inverted previous yaw direction.
-    Now line offset causes bow to turn TOWARD dock.
-    */
-    const torque = -(rp.x * fy - rp.y * fx);
+    // only torque that turns bow toward dock
+    let torque = -(rp.x * fy - rp.y * fx);
 
-    boat.av += torque * 0.001;
+    // never allow line torque to turn left
+    if(torque < 0) torque = 0;
+
+    boat.av += torque * 0.00072;
   }
 
   boat.vx *= 0.992;
@@ -273,11 +280,14 @@ loop();
 </html>
 
 
+
+
+   
+
  
 
 
-
-
+ 
 
 
   
