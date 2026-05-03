@@ -176,7 +176,7 @@ function update(){
     // ensure line only turns toward dock
     if(torque < 0) torque = 0;
 
-    boat.av += torque * 0.004;
+    boat.av += torque * 0.003;
   }
 
   boat.vx *= 0.992;
