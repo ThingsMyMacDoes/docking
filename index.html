@@ -155,7 +155,7 @@ function update(){
     */
     const torque = -(rp.x * fy - rp.y * fx);
 
-    boat.av += torque * 0.00072;
+    boat.av += torque * 0.001;
   }
 
   boat.vx *= 0.992;
