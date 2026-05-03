@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<body>
+<canvas id="c" width="1000" height="700"></canvas>
+
+<script>
+const ctx = c.getContext("2d");
+
+let boat = {
+  x:500, y:350,
+  angle:0.5,
+  vx:0, vy:0,
+  av:0
+};
+
+let throttle = 0.2;
+let rudder = 0;
+
+const dockX = 150;
+const lineLength = 220;
+
+function rotate(x,y,a){
+  return {
+    x:x*Math.cos(a)-y*Math.sin(a),
+    y:x*Math.sin(a)+y*Math.cos(a)
+  };
+}
+
+function update(){
+
+  let thrust = 0.05;
+
+  boat.vx += Math.cos(boat.angle)*thrust*throttle;
+  boat.vy += Math.sin(boat.angle)*thrust*throttle;
+
+  let speed = Math.hypot(boat.vx, boat.vy);
+  boat.av += rudder * speed * 0.002;
+
+  // spring attach point
+  let p = rotate(-25,10,boat.angle);
+  let ax = boat.x + p.x;
+  let ay = boat.y + p.y;
+
+  let dx = dockX - ax;
+  let dy = 350 - ay;
+  let dist = Math.hypot(dx,dy);
+
+  if(dist > lineLength){
+    let stretch = dist-lineLength;
+    let fx = dx/dist * stretch * 0.02;
+    let fy = dy/dist * stretch * 0.02;
+
+    boat.vx += fx;
+    boat.vy += fy;
+
+    // torque
+    boat.av += (p.x*fy - p.y*fx)*0.0005;
+  }
+
+  boat.x += boat.vx;
+  boat.y += boat.vy;
+  boat.angle += boat.av;
+
+  boat.vx *= 0.99;
+  boat.vy *= 0.99;
+  boat.av *= 0.97;
+}
+
+function draw(){
+
+  ctx.clearRect(0,0,1000,700);
+
+  // dock
+  ctx.fillRect(dockX-10,0,10,700);
+
+  // boat
+  ctx.save();
+  ctx.translate(boat.x,boat.y);
+  ctx.rotate(boat.angle);
+
+  ctx.fillStyle="steelblue";
+  ctx.fillRect(-40,-12,80,24);
+
+  ctx.restore();
+
+  // line
+  let p = rotate(-25,10,boat.angle);
+  ctx.beginPath();
+  ctx.moveTo(dockX,350);
+  ctx.lineTo(boat.x+p.x, boat.y+p.y);
+  ctx.stroke();
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+window.onkeydown = e=>{
+ if(e.key==="ArrowUp") throttle+=0.1;
+ if(e.key==="ArrowDown") throttle-=0.1;
+ if(e.key==="ArrowLeft") rudder=-1;
+ if(e.key==="ArrowRight") rudder=1;
+};
+
+window.onkeyup = e=>{
+ rudder=0;
+};
+
+loop();
+</script>
+</body>
+</html>
